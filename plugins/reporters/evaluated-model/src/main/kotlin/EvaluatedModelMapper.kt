@@ -29,6 +29,7 @@ import org.ossreviewtoolkit.model.PackageLinkage
 import org.ossreviewtoolkit.model.Project
 import org.ossreviewtoolkit.model.Provenance
 import org.ossreviewtoolkit.model.RemoteArtifact
+import org.ossreviewtoolkit.model.Repository
 import org.ossreviewtoolkit.model.RuleViolation
 import org.ossreviewtoolkit.model.ScanResult
 import org.ossreviewtoolkit.model.TextLocation
@@ -143,7 +144,7 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
             vulnerabilitiesResolutions = vulnerabilitiesResolutions,
             vulnerabilities = vulnerabilities,
             statistics = with(input) { getStatistics(ortResult, licenseInfoResolver, ortConfig) },
-            repository = input.ortResult.repository,
+            repository = input.ortResult.repository.deduplicateResolutions(),
             severeIssueThreshold = input.ortConfig.severeIssueThreshold,
             severeRuleViolationThreshold = input.ortConfig.severeRuleViolationThreshold,
             repositoryConfiguration = input.ortResult.repository.config.toYaml(),
@@ -604,19 +605,19 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
     }
 
     private fun addResolutions(issue: Issue): List<IssueResolution> {
-        val matchingResolutions = input.resolutionProvider.getResolutionsFor(issue)
+        val matchingResolutions = input.ortResult.getResolutionsFor(issue)
 
         return issueResolutions.addIfRequired(matchingResolutions)
     }
 
     private fun addResolutions(ruleViolation: RuleViolation): List<RuleViolationResolution> {
-        val matchingResolutions = input.resolutionProvider.getResolutionsFor(ruleViolation)
+        val matchingResolutions = input.ortResult.getResolutionsFor(ruleViolation)
 
         return ruleViolationResolutions.addIfRequired(matchingResolutions)
     }
 
     private fun addResolutions(vulnerability: Vulnerability): List<VulnerabilityResolution> {
-        val matchingResolutions = input.resolutionProvider.getResolutionsFor(vulnerability)
+        val matchingResolutions = input.ortResult.getResolutionsFor(vulnerability)
 
         return vulnerabilitiesResolutions.addIfRequired(matchingResolutions)
     }
@@ -718,4 +719,24 @@ internal class EvaluatedModelMapper(private val input: ReporterInput) {
      */
     private fun <T> MutableList<T>.addIfRequired(values: Collection<T>): List<T> =
         values.map { addIfRequired(it) }.distinct()
+
+    /**
+     * Replace instances of resolution with equal instances contained in [issueResolutions], [ruleViolations] or
+     * [vulnerabilitiesResolutions] in order to avoid redundant serialization, see also [addIfRequired].
+     */
+    private fun Repository.deduplicateResolutions(): Repository {
+        val resolutions = with(config.resolutions) {
+            copy(
+                issues = issues.map { resolution -> issueResolutions.find { resolution == it } ?: resolution },
+                ruleViolations = ruleViolations.map { resolution ->
+                    ruleViolationResolutions.find { resolution == it } ?: resolution
+                },
+                vulnerabilities = vulnerabilities.map { resolution ->
+                    vulnerabilitiesResolutions.find { resolution == it } ?: resolution
+                }
+            )
+        }
+
+        return copy(config = config.copy(resolutions = resolutions))
+    }
 }
