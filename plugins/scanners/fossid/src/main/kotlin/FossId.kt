@@ -241,12 +241,6 @@ class FossId internal constructor(
 
     override fun scanPackage(pkg: Package, context: ScanContext): ScanResult {
         val (result, duration) = measureTimedValue {
-            fun createSingleIssueResult(issue: Issue, provenance: Provenance): ScanResult {
-                val time = Instant.now()
-                val summary = createSingleIssueSummary(time, time, issue)
-                return ScanResult(provenance, details, summary)
-            }
-
             val issueMessage = when {
                 pkg.vcsProcessed.type != VcsType.GIT ->
                     "Package '${pkg.id.toCoordinates()}' uses VCS type '${pkg.vcsProcessed.type}', but only " +
@@ -263,8 +257,10 @@ class FossId internal constructor(
             }
 
             if (issueMessage != null) {
-                val issue = createAndLogIssue(name, issueMessage,Severity.WARNING)
-                return createSingleIssueResult(issue, UnknownProvenance)
+                val issue = createAndLogIssue(name, issueMessage, Severity.WARNING)
+                val time = Instant.now()
+                val summary = createSingleIssueSummary(time, time, issue)
+                return ScanResult(UnknownProvenance, details, summary)
             }
 
             val startTime = Instant.now()
