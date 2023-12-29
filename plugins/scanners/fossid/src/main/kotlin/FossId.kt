@@ -275,9 +275,8 @@ class FossId internal constructor(
                         "path '${pkg.vcsProcessed.path}' set and scanning cannot be limited to paths.",
                     severity = Severity.WARNING
                 )
-                val provenance = RepositoryProvenance(pkg.vcsProcessed, pkg.vcsProcessed.revision)
 
-                return createSingleIssueResult(issue, provenance)
+                return createSingleIssueResult(issue, UnknownProvenance)
             }
 
             val startTime = Instant.now()
